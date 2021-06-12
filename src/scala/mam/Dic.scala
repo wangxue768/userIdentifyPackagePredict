@@ -40,7 +40,7 @@ object Dic {
   val colUserIdLeft = "user_id_left"
   val colUserIdRight = "user_id_right"
 
-  val colPlayOrder = "play_or_order" // 1表示play 2表示order
+  val colIsOrder = "is_order" // 1表示order, 0表示play
 
   /**
    * medias数据集中的属性
@@ -353,6 +353,9 @@ object Dic {
 
   val colId = "id"
   val colVideoVector = "video_vector"
+
+  val colStartTimeLeadItem = "start_time_lead_item"
+  val colTimeGap = "time_gap"
 
 
 }

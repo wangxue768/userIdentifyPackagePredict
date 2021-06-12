@@ -9,8 +9,8 @@ import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 object GetSaveData {
 
   var tempTable = "temp_table"
-    val hdfsPath = ""
-//      val hdfsPath = "/pay_predict_Wasu/"
+//    val hdfsPath = ""
+      val hdfsPath = "/pay_predict_4_Wasu/"
 //  val hdfsPath = "/pay_predict_3/"
   val delimiter = ","
 
