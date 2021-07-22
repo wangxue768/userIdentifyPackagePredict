@@ -12,6 +12,7 @@ import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
 object Utils {
 
+
   def sysParamSetting() = {
 
     System.setProperty("hadoop.home.dir", "c:\\winutils")
@@ -45,22 +46,19 @@ object Utils {
   }
 
   /**
-    * @author wj
-    * @param [spark, orderProcessedPath]
-    * @return org.apache.spark.sql.Dataset<org.apache.spark.sql.Row>
-    * @description 读取数据
-    */
+   * @author wj
+   * @param [spark, orderProcessedPath]
+   * @return org.apache.spark.sql.Dataset<org.apache.spark.sql.Row>
+   * @description 读取数据
+   */
   def getData(spark: SparkSession, path: String) = {
     spark.read.format("parquet").load(path)
   }
 
 
-
-
-
-
   //orderProcess
   def udfChangeDateFormat = udf(changeDateFormat _) //实名函数的注册 要在后面加 _(
+
   def changeDateFormat(date: String) = {
     /**
      * @author wj
@@ -124,11 +122,11 @@ object Utils {
   }
 
   /**
-    * @author wj
-    * @param [time]
-    * @return java.lang.String
-    * @describe 将long类型的时间戳，转化为yyyy-MM-dd HH:mm:ss的字符串
-    */
+   * @author wj
+   * @param [time]
+   * @return java.lang.String
+   * @describe 将long类型的时间戳，转化为yyyy-MM-dd HH:mm:ss的字符串
+   */
   def udfLongToTimestampV2 = udf(longToTimestampV2 _)
 
   def longToTimestampV2(time: String) = {
@@ -193,6 +191,8 @@ object Utils {
     playEndTime + " 00:00:00"
   }
 
+
+  def udfCalDate = udf(calDate _)
 
   //工具函数，计算一个日期加上几天后的日期
   def calDate(date: String, days: Int): String = {
@@ -280,12 +280,12 @@ object Utils {
   }
 
   /**
-    * @description 统一有效时长
-    * @author wx
-    * @param [timeValidity] 订单有效时长
-    * @param [resourceType] 订单资源类型
-    * @return {@link int }
-    * */
+   * @description 统一有效时长
+   * @author wx
+   * @param [timeValidity] 订单有效时长
+   * @param [resourceType] 订单资源类型
+   * @return {@link int }
+   * */
   def udfUniformTimeValidity = udf(uniformTimeValidity _)
 
   def uniformTimeValidity(timeValidity: Int, resourceType: Int): Int = {
@@ -504,9 +504,9 @@ object Utils {
     if (result.size >= topN) {
       result.take(topN).toVector //take(3)是选取前3个数据
     } else {
-            for (i <- result.size to topN - 1) {
-              result.append("0")
-            }
+      for (i <- result.size to topN - 1) {
+        result.append("0")
+      }
       result.toVector
     }
 
@@ -607,7 +607,6 @@ object Utils {
     )
     wightVector.toString()
   }
-
 
 
   def mapIdToMediasVector(mediaMap: mutable.HashMap[String, String]) = udf((idList: mutable.WrappedArray[String]) =>

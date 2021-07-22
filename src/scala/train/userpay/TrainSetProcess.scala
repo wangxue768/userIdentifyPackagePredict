@@ -2,16 +2,19 @@ package train.userpay
 
 import mam.GetSaveData._
 import mam.SparkSessionInit.spark
-import mam.Utils.{printDf, sysParamSetting}
+import mam.Utils.{getData, printDf, sysParamSetting}
 import mam.{Dic, SparkSessionInit}
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.functions.{col, lit, udf}
+import train.common.UserLabel.user_label_path
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 object TrainSetProcess {
 
+
+  val dataset_path = hdfsPath + "/data/wx/userprofile"
 
   def main(args: Array[String]): Unit = {
 
@@ -20,18 +23,16 @@ object TrainSetProcess {
     sysParamSetting
     SparkSessionInit.init()
 
-    val trainTime = args(0) + " " + args(1)
-    println("trainTime", trainTime)
 
     // 2 Get Data
 
-    val df_user_profile_play = getUserProfilePlayPart(spark, trainTime, "train")
+    val df_user_profile_play = getUserProfilePlayPart(spark, "train")
     printDf("输入 df_user_profile_play", df_user_profile_play)
 
-    val df_user_profile_pref = getUserProfilePreferencePart(spark, trainTime, "train")
+    val df_user_profile_pref = getUserProfilePreferencePart(spark, "train")
     printDf("输入 df_user_profile_pref", df_user_profile_pref)
 
-    val df_user_profile_order = getUserProfileOrderPart(spark, trainTime, "train")
+    val df_user_profile_order = getUserProfileOrderPart(spark, "train")
     printDf("输入 df_user_profile_order", df_user_profile_order)
 
     val df_video_first_category = getVideoFirstCategory()
@@ -43,24 +44,15 @@ object TrainSetProcess {
     val df_label = getVideoLabel()
     printDf("输入 df_label", df_label)
 
-    val df_train_user = getTrainUser(spark, trainTime)
+    val df_train_user = getData(spark, user_label_path)
     printDf("输入 df_train_user", df_train_user)
 
-    //    val df_play_vec = getDataFromXXK("train", "train_play_vector_" + playsNum)
-    //    printDf("输入 df_play_vec", df_play_vec)
-
-    //    val df_click_Meta = getProcessedUserMeta()
-    //    printDf("df_click_Meta", df_click_Meta)
-
-    // 3 Train Set Process
-    //    val df_train_set = trainSetProcess(df_user_profile_play, df_user_profile_pref, df_user_profile_order,
-    //      df_video_first_category, df_video_second_category, df_label, df_train_user, df_click_Meta)
 
     val df_train_set = trainSetProcess(df_user_profile_play, df_user_profile_pref, df_user_profile_order,
       df_video_first_category, df_video_second_category, df_label, df_train_user)
 
     // 4 Save Train Users
-    saveDataSet(trainTime, df_train_set, "train")
+    saveProcessedData(df_train_set, dataset_path)
     printDf("输出 df_train_set", df_train_set)
     println("Train Set Process Done！")
 
@@ -117,42 +109,6 @@ object TrainSetProcess {
       .map(row => row.getAs(Dic.colVideoTwoLevelClassificationList).toString -> row.getAs(Dic.colIndex).toString)
       .collectAsMap() //将key-value对类型的RDD转化成Map
       .asInstanceOf[mutable.HashMap[String, Int]]
-
-
-    //    // 类别型标签
-    //    val labelMap = df_label.rdd //Dataframe转化为RDD
-    //      .map(row => row.getAs(Dic.colVideoTagList).toString -> row.getAs(Dic.colIndex).toString)
-    //      .collectAsMap() //将key-value对类型的RDD转化成Map
-    //      .asInstanceOf[mutable.HashMap[String, Int]]
-
-    // 原本的处理方式
-    //    var videoFirstCategoryMap: Map[String, Int] = Map()
-    //    var videoSecondCategoryMap: Map[String, Int] = Map()
-    //    var labelMap: Map[String, Int] = Map()
-
-    //    // 一级分类
-    //    var conList = df_video_first_category.collect()
-    //    for (elem <- conList) {
-    //      val s = elem.toString()
-    //      videoFirstCategoryMap += (s.substring(1, s.length - 1).split("\t")(1) -> s.substring(1, s.length - 1).split("\t")(0).toInt)
-    //
-    //    }
-    //    //二级分类
-    //    conList = df_video_second_category.collect()
-    //    for (elem <- conList) {
-    //      val s = elem.toString()
-    //      videoSecondCategoryMap += (s.substring(1, s.length - 1).split("\t")(1) -> s.substring(1, s.length - 1).split("\t")(0).toInt)
-    //
-    //    }
-    //
-    //    //标签
-    //    conList = df_label.collect()
-    //    for (elem <- conList) {
-    //      val s = elem.toString()
-    //      labelMap += (s.substring(1, s.length - 1).split("\t")(1) -> s.substring(1, s.length - 1).split("\t")(0).toInt)
-    //
-    //    }
-
 
     val prefColumns = List(Dic.colVideoOneLevelPreference, Dic.colVideoTwoLevelPreference,
       Dic.colMovieTwoLevelPreference, Dic.colSingleTwoLevelPreference, Dic.colInPackageVideoTwoLevelPreference)
@@ -227,28 +183,11 @@ object TrainSetProcess {
     }
 
 
-    /**
-     * 将添加用户的标签信息
-     */
     val df_train_user_prof = df_userProfile_split_pref3.select(columnList.map(df_userProfile_split_pref3.col(_)): _*)
 
 
-    /**
-     * 添加用户的点击类提取特征
-     */
 
-
-    //    val df_user_click = df_train_user_prof.join(df_click_meta, joinKeysUserId, "left")
-    //      .na.fill(0)
-    //
-
-    /**
-     * 添加用户标签
-     */
-
-    val df_train_set = df_train_user.join(df_train_user_prof, joinKeysUserId, "left")
-    df_train_set
-
+    df_train_user_prof
 
   }
 

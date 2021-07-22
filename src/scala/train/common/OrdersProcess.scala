@@ -26,7 +26,7 @@ object OrdersProcess {
     printDf("输出 df_order_processed", df_order_processed)
 
     // 4 數據存儲
-    saveProcessedOrder(df_order_processed)
+    saveProcessedData(df_order_processed, orderProcessedPath)
     println("订单数据处理完成！")
 
 

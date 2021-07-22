@@ -14,9 +14,8 @@ object SparkSessionInit {
 
     spark = SparkSession
       .builder()
-      //      .enableHiveSupport()
-//      .master("local[6]")  //数字表示分配的核数
-//      .master("spark://10.102.0.198:7077")
+      .master("local[6]")  //数字表示分配的核数
+//      .master("spark://10.102.0.206:7077")
       .config("spark.sql.crossJoin.enabled", "true")
       .config("hive.exec.dynamici.partition", true)
       .config("hive.exec.dynamic.partition.mode", "nonstrict")

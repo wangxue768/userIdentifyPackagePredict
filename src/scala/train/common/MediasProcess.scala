@@ -29,9 +29,8 @@ object MediasProcess {
     val df_medias_processed = mediasProcess(df_raw_medias)
     printDf("输出 df_medias_processed", df_medias_processed)
 
-//    saveProcessedMedia(df_medias_processed)
+    saveProcessedMedia(df_medias_processed)
 
-    print(df_medias_processed.columns.toList)
 
     // 3-2
     val df_label_one = getSingleStrColLabel(df_medias_processed, Dic.colVideoOneLevelClassification)

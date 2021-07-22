@@ -13,6 +13,7 @@ object Dic {
   //原始属性
   val colUserId = "user_id"
   val colPlayEndTime = "play_end_time"
+  val colMaxPlayEndTime = "max_play_end_time"
   val colBroadcastTime = "broadcast_time"
   //处理过程中添加
   val colPlayStartTime = "play_start_time"
@@ -26,6 +27,7 @@ object Dic {
   val colTimeGap3hSignLag = "timeGap_3h_sign_lag"
   val colConvertEndTime = "convert_end_time"
   val colSessionSign = "session_sign"
+  val colSessionId = "session_id"
   val colConvertTime = "convert_time"
   val colCreationGap = "creation_gap"
   val colPlayDate = "play_date"
@@ -41,7 +43,7 @@ object Dic {
   val colUserIdRight = "user_id_right"
 
   val colIsOrder = "is_order" // 1表示order, 0表示play
-
+  val colTimeGap = "time_gap"
   /**
    * medias数据集中的属性
    */
@@ -82,6 +84,9 @@ object Dic {
   val colConcatVec = "concat_vector"
   val colConcatText = "concat_text"
   val colIndex = "index"
+  val colPlayIndex = "play_index"
+  val colPackIndex = "pack_index"
+  val colPackageList = "package_list"
   val colDigitalCategoryVec = "digital_category_vector"
   val colDigitalCategoryScalaVec = "digital_category_scala_vector"
 
@@ -105,7 +110,7 @@ object Dic {
   val colCreationTimeGap = "creation_time_gap"
   val colOrderHistory = "order_history"
   val colPackageDuration = "package_duration"  //订单时常
-
+  val colOrderCreationTime = "order_creation_time"
   /**
    * 用户画像中的属性
    */
@@ -355,7 +360,18 @@ object Dic {
   val colVideoVector = "video_vector"
 
   val colStartTimeLeadItem = "start_time_lead_item"
-  val colTimeGap = "time_gap"
+  val colStartTimeLastItem = "start_time_last_item"
+  val colTimeGapLeadItem = "time_gap_lead_item"
+  val colTimeGapLastItem = "time_gap_last_item"
+
+  val colOrderStatusLeadItem = "lead_order_status"
+  val colResourceTypeLeadItem = "lead_resource_type"
+  val colEndTime = "end_time"
+
+  val colLeadSession = "lead_session_id"
+  val colLagSession = "lag_session_id"
+  val colSessionList = "session_list"
+  val colTimeLimit = "time_limit"
 
 
 }

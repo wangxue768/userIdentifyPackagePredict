@@ -1,14 +1,12 @@
 package train.common
 
-import mam.{Dic, SparkSessionInit}
-import mam.GetSaveData.{getProcessedMedias, getRawOrders, getRawPlays, getRawPlays2, saveProcessedData, saveProcessedOrder, saveProcessedPlay}
+import mam.GetSaveData.{getProcessedMedias, getRawPlays, orderProcessedPath, saveProcessedData}
 import mam.SparkSessionInit.spark
 import mam.Utils.{getData, printDf, sysParamSetting, udfLongToDateTime}
-import org.apache.spark.sql
+import mam.{Dic, SparkSessionInit}
+import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.expressions.Window
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.{DataFrame, SparkSession}
-import train.common.OrdersProcess.orderProcess
 import train.userpay.userProfile.UserProfileGenerateOrderPart.playProcessedPath
 
 /**
@@ -18,7 +16,7 @@ import train.userpay.userProfile.UserProfileGenerateOrderPart.playProcessedPath
  * @describe 对 play划分 session 并对session内视频不合并进行合并
  */
 
-object PlaysProcessBySplitSession {
+object PlaysUserInOrderProcess {
 
   val timeMaxLimit = 48000 //12h
   val timeMinLimit = 30
@@ -31,7 +29,12 @@ object PlaysProcessBySplitSession {
     SparkSessionInit.init()
 
     // 2 數據讀取
-    val df_play_raw = getRawPlays(spark)
+    val df_play_raw_all = getRawPlays(spark)
+    printDf("输入 df_play_raw_all", df_play_raw_all)
+
+    val df_order = getData(spark, orderProcessedPath)
+
+    val df_play_raw = df_play_raw_all.join(df_order, Seq(Dic.colUserId), "inner")
     printDf("输入 df_play_raw", df_play_raw)
 
     val df_medias_processed = getProcessedMedias(spark)
@@ -59,7 +62,6 @@ object PlaysProcessBySplitSession {
         when(col(Dic.colBroadcastTime) === "NULL", null).otherwise(col(Dic.colBroadcastTime)).as(Dic.colBroadcastTime)
       ).na.drop("any")
       .filter(col(Dic.colBroadcastTime) > timeMinLimit and col(Dic.colBroadcastTime) < timeMaxLimit)
-      .dropDuplicates()
 
     /**
      * 删除不在medias中的播放数据

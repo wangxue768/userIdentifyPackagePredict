@@ -1,21 +1,26 @@
 package train.userpay.userProfile
 
-import mam.GetSaveData.{getProcessedMedias, getProcessedPlay, getTrainUser, saveUserProfilePreferencePart}
+import mam.GetSaveData.{getProcessedMedias, getProcessedPlay, getTrainUser, saveUserProfilePlayPart, saveUserProfilePreferencePart}
 import mam.SparkSessionInit.spark
 import mam.Utils._
 import mam.{Dic, SparkSessionInit}
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.functions._
+import train.common.UserLabel.user_label_path
+import train.userpay.userProfile.UserProfileGenerateOrderPart.playProcessedPath
 
 /**
- * @ClassName UserProfileGeneratePreferencePartForUserpay
+ * @ClassName UserProfileGeneratePreferencePart
  * @author wx
  * @Description TODO
  * @createTime 2021年06月09日 12:08:00
  */
-object UserProfileGeneratePreferencePartForUserpay {
+object UserProfileGeneratePreferencePart {
 
   def main(args: Array[String]): Unit = {
+
+    println(this.getClass.getName)
+
 
     // 1 SparkSession init
     sysParamSetting()
@@ -23,101 +28,115 @@ object UserProfileGeneratePreferencePartForUserpay {
 
 
     // 2 Get Data
-    val now = args(0) + " " + args(1)
 
-    val df_plays = getProcessedPlay(spark)
+    val df_plays = getData(spark, playProcessedPath)
     printDf("输入 df_plays", df_plays)
 
     val df_medias = getProcessedMedias(spark)
     printDf("输入 df_medias", df_medias)
 
 
-    val df_train_users = getTrainUser(spark, now)
+    val df_train_users = getData(spark, user_label_path)
     printDf("输入 df_train_users", df_train_users)
 
     // 3 Process Data
-    val df_user_profile_pref = userProfileGeneratePreferencePart(now, df_plays, df_train_users, df_medias)
+    val df_user_profile_pref = userProfileGeneratePreferencePart(df_plays, df_train_users, df_medias)
 
     // 4 Save Data
-    saveUserProfilePreferencePart(now, df_user_profile_pref, "train")
+    ///////////////////
+    saveUserProfilePreferencePart(df_user_profile_pref, "train")
+
     printDf("输出 df_user_profile_pref", df_user_profile_pref)
 
     println("用户画像Preference部分生成完毕。")
 
   }
 
-  def userProfileGeneratePreferencePart(now: String, df_plays: DataFrame, df_train_users: DataFrame, df_medias: DataFrame) = {
+  def userProfileGeneratePreferencePart( df_plays: DataFrame, df_train_users: DataFrame, df_medias: DataFrame) = {
 
 
     val df_train_id = df_train_users.select(Dic.colUserId)
-    val df_train_plays = df_plays.join(df_train_id, Seq(Dic.colUserId), "inner")
-      .withColumn(Dic.colPlayDate, col(Dic.colPlayStartTime).substr(1, 10))
 
-    val pre_30 = calDate(now, -30)
-    val pre_14 = calDate(now, days = -14)
-    val pre_7 = calDate(now, -7)
-    val pre_3 = calDate(now, -3)
-    val pre_1 = calDate(now, -1)
     val joinKeysUserId = Seq(Dic.colUserId)
-
     val joinKeyVideoId = Seq(Dic.colVideoId)
-    val df_train_medias = df_train_plays.join(df_medias, joinKeyVideoId, "inner")
+
+    val df_play_max = df_plays.groupBy(Dic.colUserId).agg(max(Dic.colPlayEndTime).as(Dic.colMaxPlayEndTime))
+
+    val df_train_plays = df_plays
+      .join(df_play_max, joinKeysUserId, "inner")
+      .join(df_train_id, joinKeysUserId, "inner")
+      .withColumn(Dic.colPlayDate, col(Dic.colPlayEndTime).substr(1, 10))
+
+
+
+    val df_train_medias = df_train_plays
+      .select(Dic.colUserId, Dic.colVideoId, Dic.colBroadcastTime, Dic.colPlayEndTime, Dic.colMaxPlayEndTime, Dic.colPlayDate)
+      .join(df_medias, joinKeyVideoId, "inner")
+
+    printDf("df_train_medias", df_train_medias)
 
     /**
      * 时长类转换成了分钟
      */
     val df_play_medias_part_41 = df_train_medias
       .filter(
-        col(Dic.colPlayStartTime).<(now)
-          && col(Dic.colPlayStartTime).>=(pre_30)
+        col(Dic.colPlayEndTime) < col(Dic.colMaxPlayEndTime)
+          && col(Dic.colPlayEndTime) >=  udfCalDate(col(Dic.colMaxPlayEndTime), lit(-30))
           && col(Dic.colVideoOneLevelClassification).===("电影"))
       .groupBy(col(Dic.colUserId))
       .agg(
-        sum(col(Dic.colTimeSum)).as(Dic.colTotalTimeMoviesLast30Days)
+        sum(col(Dic.colBroadcastTime)).as(Dic.colTotalTimeMoviesLast30Days)
       ).withColumn(Dic.colTotalTimeMoviesLast30Days, round(col(Dic.colTotalTimeMoviesLast30Days) / 60, 0))
+
+    printDf("df_play_medias_part_41", df_play_medias_part_41)
 
     val df_play_medias_part_42 = df_train_medias
       .filter(
-        col(Dic.colPlayStartTime).<(now)
-          && col(Dic.colPlayStartTime).>=(pre_14)
+        col(Dic.colPlayEndTime)< col(Dic.colMaxPlayEndTime)
+          && col(Dic.colPlayEndTime) >=  (udfCalDate(col(Dic.colMaxPlayEndTime), lit(-14)))
           && col(Dic.colVideoOneLevelClassification).===("电影"))
       .groupBy(col(Dic.colUserId))
       .agg(
-        sum(col(Dic.colTimeSum)).as(Dic.colTotalTimeMoviesLast14Days)
+        sum(col(Dic.colBroadcastTime)).as(Dic.colTotalTimeMoviesLast14Days)
       )
       .withColumn(Dic.colTotalTimeMoviesLast14Days, round(col(Dic.colTotalTimeMoviesLast14Days) / 60, 0))
 
+    printDf("df_play_medias_part_42", df_play_medias_part_42)
 
     val df_play_medias_part_43 = df_train_medias
       .filter(
-        col(Dic.colPlayStartTime).<(now)
-          && col(Dic.colPlayStartTime).>=(pre_7)
+        col(Dic.colPlayEndTime)< col(Dic.colMaxPlayEndTime)
+          && col(Dic.colPlayEndTime)>=  ( udfCalDate(col(Dic.colMaxPlayEndTime), lit(-7)))
           && col(Dic.colVideoOneLevelClassification).===("电影"))
       .groupBy(col(Dic.colUserId))
       .agg(
-        sum(col(Dic.colTimeSum)).as(Dic.colTotalTimeMoviesLast7Days)
+        sum(col(Dic.colBroadcastTime)).as(Dic.colTotalTimeMoviesLast7Days)
       )
       .withColumn(Dic.colTotalTimeMoviesLast7Days, round(col(Dic.colTotalTimeMoviesLast7Days) / 60, 0))
 
+    printDf("df_play_medias_part_43", df_play_medias_part_43)
+
+
+
     val df_play_medias_part_44 = df_train_medias
       .filter(
-        col(Dic.colPlayStartTime).<(now)
-          && col(Dic.colPlayStartTime).>=(pre_3)
+        col(Dic.colPlayEndTime)< col(Dic.colMaxPlayEndTime)
+          && col(Dic.colPlayEndTime)>=  ( udfCalDate(col(Dic.colMaxPlayEndTime), lit(-3)))
           && col(Dic.colVideoOneLevelClassification).===("电影"))
       .groupBy(col(Dic.colUserId))
       .agg(
-        sum(col(Dic.colTimeSum)).as(Dic.colTotalTimeMoviesLast3Days)
+        sum(col(Dic.colBroadcastTime)).as(Dic.colTotalTimeMoviesLast3Days)
       ).withColumn(Dic.colTotalTimeMoviesLast3Days, round(col(Dic.colTotalTimeMoviesLast3Days) / 60, 0))
 
 
     val df_play_medias_part_45 = df_train_medias
       .filter(
-        col(Dic.colPlayStartTime).<(now)
-          && col(Dic.colPlayStartTime).>=(pre_1)
+        col(Dic.colPlayEndTime)< col(Dic.colMaxPlayEndTime)
+          && col(Dic.colPlayEndTime)>=  ( udfCalDate(col(Dic.colMaxPlayEndTime), lit(-1)))
           && col(Dic.colVideoOneLevelClassification).===("电影"))
       .groupBy(col(Dic.colUserId))
       .agg(
-        sum(col(Dic.colTimeSum)).as(Dic.colTotalTimeMoviesLast1Days)
+        sum(col(Dic.colBroadcastTime)).as(Dic.colTotalTimeMoviesLast1Days)
       )
       .withColumn(Dic.colTotalTimeMoviesLast1Days, round(col(Dic.colTotalTimeMoviesLast1Days) / 60, 0))
 
@@ -130,62 +149,62 @@ object UserProfileGeneratePreferencePartForUserpay {
 
     val df_play_medias_part_51 = df_train_medias
       .filter(
-        col(Dic.colPlayStartTime).<(now)
-          && col(Dic.colPlayStartTime).>=(pre_30)
+        col(Dic.colPlayEndTime)< col(Dic.colMaxPlayEndTime)
+          && col(Dic.colPlayEndTime)>=  ( udfCalDate(col(Dic.colMaxPlayEndTime), lit(-30)))
           && col(Dic.colVideoOneLevelClassification).===("电影")
-          && col(Dic.colIsPaid).===(1))
+          && (col(Dic.colIsPaid).===(1) || col(Dic.colPackageId) > 0))
       .groupBy(col(Dic.colUserId))
       .agg(
-        sum(col(Dic.colTimeSum)).as(Dic.colTotalTimePaidMoviesLast30Days)
+        sum(col(Dic.colBroadcastTime)).as(Dic.colTotalTimePaidMoviesLast30Days)
       )
       .withColumn(Dic.colTotalTimePaidMoviesLast30Days, round(col(Dic.colTotalTimePaidMoviesLast30Days) / 60, 0))
 
     val df_play_medias_part_52 = df_train_medias
       .filter(
-        col(Dic.colPlayStartTime).<(now)
-          && col(Dic.colPlayStartTime).>=(pre_14)
+        col(Dic.colPlayEndTime)< col(Dic.colMaxPlayEndTime)
+          && col(Dic.colPlayEndTime)>=  ( udfCalDate(col(Dic.colMaxPlayEndTime), lit(-14)))
           && col(Dic.colVideoOneLevelClassification).===("电影")
-          && col(Dic.colIsPaid).===(1))
+          && (col(Dic.colIsPaid).===(1) || col(Dic.colPackageId) > 0))
       .groupBy(col(Dic.colUserId))
       .agg(
-        sum(col(Dic.colTimeSum)).as(Dic.colTotalTimePaidMoviesLast14Days)
+        sum(col(Dic.colBroadcastTime)).as(Dic.colTotalTimePaidMoviesLast14Days)
       )
       .withColumn(Dic.colTotalTimePaidMoviesLast14Days, round(col(Dic.colTotalTimePaidMoviesLast14Days) / 60, 0))
 
 
     val df_play_medias_part_53 = df_train_medias
       .filter(
-        col(Dic.colPlayStartTime).<(now)
-          && col(Dic.colPlayStartTime).>=(pre_7)
+        col(Dic.colPlayEndTime)< col(Dic.colMaxPlayEndTime)
+          && col(Dic.colPlayEndTime) >=  udfCalDate(col(Dic.colMaxPlayEndTime), lit(-7))
           && col(Dic.colVideoOneLevelClassification).===("电影")
-          && col(Dic.colIsPaid).===(1))
+          && (col(Dic.colIsPaid).===(1) || col(Dic.colPackageId) > 0))
       .groupBy(col(Dic.colUserId))
       .agg(
-        sum(col(Dic.colTimeSum)).as(Dic.colTotalTimePaidMoviesLast7Days)
+        sum(col(Dic.colBroadcastTime)).as(Dic.colTotalTimePaidMoviesLast7Days)
       )
       .withColumn(Dic.colTotalTimePaidMoviesLast7Days, round(col(Dic.colTotalTimePaidMoviesLast7Days) / 60, 0))
 
     val df_play_medias_part_54 = df_train_medias
       .filter(
-        col(Dic.colPlayStartTime).<(now)
-          && col(Dic.colPlayStartTime).>=(pre_3)
+        col(Dic.colPlayEndTime)< col(Dic.colMaxPlayEndTime)
+          && col(Dic.colPlayEndTime)>=  ( udfCalDate(col(Dic.colMaxPlayEndTime), lit(-3)))
           && col(Dic.colVideoOneLevelClassification).===("电影")
-          && col(Dic.colIsPaid).===(1))
+          && (col(Dic.colIsPaid).===(1) || col(Dic.colPackageId) > 0))
       .groupBy(col(Dic.colUserId))
       .agg(
-        sum(col(Dic.colTimeSum)).as(Dic.colTotalTimePaidMoviesLast3Days)
+        sum(col(Dic.colBroadcastTime)).as(Dic.colTotalTimePaidMoviesLast3Days)
       )
       .withColumn(Dic.colTotalTimePaidMoviesLast3Days, round(col(Dic.colTotalTimePaidMoviesLast3Days) / 60, 0))
 
     val df_play_medias_part_55 = df_train_medias
       .filter(
-        col(Dic.colPlayStartTime).<(now)
-          && col(Dic.colPlayStartTime).>=(pre_1)
+        col(Dic.colPlayEndTime)< col(Dic.colMaxPlayEndTime)
+          && col(Dic.colPlayEndTime)>=  ( udfCalDate(col(Dic.colMaxPlayEndTime), lit(-1)))
           && col(Dic.colVideoOneLevelClassification).===("电影")
-          && col(Dic.colIsPaid).===(1))
+          && (col(Dic.colIsPaid).===(1) || col(Dic.colPackageId) > 0))
       .groupBy(col(Dic.colUserId))
       .agg(
-        sum(col(Dic.colTimeSum)).as(Dic.colTotalTimePaidMoviesLast1Days)
+        sum(col(Dic.colBroadcastTime)).as(Dic.colTotalTimePaidMoviesLast1Days)
       )
       .withColumn(Dic.colTotalTimePaidMoviesLast1Days, round(col(Dic.colTotalTimePaidMoviesLast1Days) / 60, 0))
 
@@ -201,51 +220,51 @@ object UserProfileGeneratePreferencePartForUserpay {
      */
     val df_play_medias_part_61 = df_train_medias
       .filter(
-        col(Dic.colPlayStartTime).<(now)
-          && col(Dic.colPlayStartTime).>=(pre_30)
-          && dayofweek(col(Dic.colPlayStartTime)).=!=(7)
-          && dayofweek(col(Dic.colPlayStartTime)).=!=(1))
+        col(Dic.colPlayEndTime)< col(Dic.colMaxPlayEndTime)
+          && col(Dic.colPlayEndTime)>=  ( udfCalDate(col(Dic.colMaxPlayEndTime), lit(-30)))
+          && dayofweek(col(Dic.colPlayEndTime)).=!=(7)
+          && dayofweek(col(Dic.colPlayEndTime)).=!=(1))
       .groupBy(col(Dic.colUserId))
       .agg(
         countDistinct(col(Dic.colPlayDate)).as(Dic.colActiveWorkdaysLast30Days),
-        avg(col(Dic.colTimeSum)).as(Dic.colAvgWorkdailyTimeVideosLast30Days)
+        avg(col(Dic.colBroadcastTime)).as(Dic.colAvgWorkdailyTimeVideosLast30Days)
       )
 
 
     val df_play_medias_part_62 = df_train_medias
       .filter(
-        col(Dic.colPlayStartTime).<(now)
-          && col(Dic.colPlayStartTime).>=(pre_30)
-          && dayofweek(col(Dic.colPlayStartTime)).===(7)
-          && dayofweek(col(Dic.colPlayStartTime)).===(1))
+        col(Dic.colPlayEndTime)< col(Dic.colMaxPlayEndTime)
+          && col(Dic.colPlayEndTime)>=  ( udfCalDate(col(Dic.colMaxPlayEndTime), lit(-30)))
+          && dayofweek(col(Dic.colPlayEndTime)).===(7)
+          && dayofweek(col(Dic.colPlayEndTime)).===(1))
       .groupBy(col(Dic.colUserId))
       .agg(
         countDistinct(col(Dic.colPlayDate)).as(Dic.colActiveRestdaysLast30Days),
-        avg(col(Dic.colTimeSum)).as(Dic.colAvgRestdailyTimeVideosLast30Days)
+        avg(col(Dic.colBroadcastTime)).as(Dic.colAvgRestdailyTimeVideosLast30Days)
       )
 
     val df_play_medias_part_63 = df_train_medias
       .filter(
-        col(Dic.colPlayStartTime).<(now)
-          && col(Dic.colPlayStartTime).>=(pre_30)
-          && dayofweek(col(Dic.colPlayStartTime)).=!=(7)
-          && dayofweek(col(Dic.colPlayStartTime)).=!=(1)
-          && col(Dic.colIsPaid).===(1))
+        col(Dic.colPlayEndTime)< col(Dic.colMaxPlayEndTime)
+          && col(Dic.colPlayEndTime)>=  ( udfCalDate(col(Dic.colMaxPlayEndTime), lit(-30)))
+          && dayofweek(col(Dic.colPlayEndTime)).=!=(7)
+          && dayofweek(col(Dic.colPlayEndTime)).=!=(1)
+          && (col(Dic.colIsPaid).===(1) || col(Dic.colPackageId) > 0))
       .groupBy(col(Dic.colUserId))
       .agg(
-        avg(col(Dic.colTimeSum)).as(Dic.colAvgWorkdailyTimePaidVideosLast30Days)
+        avg(col(Dic.colBroadcastTime)).as(Dic.colAvgWorkdailyTimePaidVideosLast30Days)
       )
 
     val df_play_medias_part_64 = df_train_medias
       .filter(
-        col(Dic.colPlayStartTime).<(now)
-          && col(Dic.colPlayStartTime).>=(pre_30)
-          && dayofweek(col(Dic.colPlayStartTime)).===(7)
-          && dayofweek(col(Dic.colPlayStartTime)).===(1)
-          && col(Dic.colIsPaid).===(1))
+        col(Dic.colPlayEndTime)< col(Dic.colMaxPlayEndTime)
+          && col(Dic.colPlayEndTime)>=  ( udfCalDate(col(Dic.colMaxPlayEndTime), lit(-30)))
+          && dayofweek(col(Dic.colPlayEndTime)).===(7)
+          && dayofweek(col(Dic.colPlayEndTime)).===(1)
+          && (col(Dic.colIsPaid).===(1) || col(Dic.colPackageId) > 0))
       .groupBy(col(Dic.colUserId))
       .agg(
-        avg(col(Dic.colTimeSum)).as(Dic.colAvgRestdailyTimePaidVideosLast30Days)
+        avg(col(Dic.colBroadcastTime)).as(Dic.colAvgRestdailyTimePaidVideosLast30Days)
       )
 
     val df_user_profile_pref3 = df_user_profile_pref2.join(df_play_medias_part_61, joinKeysUserId, "left")
@@ -256,8 +275,8 @@ object UserProfileGeneratePreferencePartForUserpay {
 
     val df_play_medias_part_71_temp = df_train_medias
       .filter(
-        col(Dic.colPlayStartTime).<(now)
-          && col(Dic.colPlayStartTime).>=(pre_30)
+        col(Dic.colPlayEndTime)< col(Dic.colMaxPlayEndTime)
+          && col(Dic.colPlayEndTime)>=  ( udfCalDate(col(Dic.colMaxPlayEndTime), lit(-30)))
       )
       .groupBy(col(Dic.colUserId))
       .agg(
@@ -273,8 +292,8 @@ object UserProfileGeneratePreferencePartForUserpay {
 
     val df_play_medias_part_72_temp = df_train_medias
       .filter(
-        col(Dic.colPlayStartTime).<(now)
-          && col(Dic.colPlayStartTime).>=(pre_30)
+        col(Dic.colPlayEndTime)< col(Dic.colMaxPlayEndTime)
+          && col(Dic.colPlayEndTime)>=  ( udfCalDate(col(Dic.colMaxPlayEndTime), lit(-30)))
           && col(Dic.colVideoOneLevelClassification).===("电影")
       )
       .groupBy(col(Dic.colUserId))
@@ -289,8 +308,8 @@ object UserProfileGeneratePreferencePartForUserpay {
 
     val df_play_medias_part_73_temp = df_train_medias
       .filter(
-        col(Dic.colPlayStartTime).<(now)
-          && col(Dic.colPlayStartTime).>=(pre_30)
+        col(Dic.colPlayEndTime)< col(Dic.colMaxPlayEndTime)
+          && col(Dic.colPlayEndTime)>=  ( udfCalDate(col(Dic.colMaxPlayEndTime), lit(-30)))
           && col(Dic.colIsSingle).===(1)
       )
       .groupBy(col(Dic.colUserId))
@@ -304,8 +323,8 @@ object UserProfileGeneratePreferencePartForUserpay {
 
     val df_play_medias_part_74_temp = df_train_medias
       .filter(
-        col(Dic.colPlayStartTime).<(now)
-          && col(Dic.colPlayStartTime).>=(pre_30)
+        col(Dic.colPlayEndTime)< col(Dic.colMaxPlayEndTime)
+          && col(Dic.colPlayEndTime)>=  ( udfCalDate(col(Dic.colMaxPlayEndTime), lit(-30)))
           && !isnan(col(Dic.colPackageId))
       )
       .groupBy(col(Dic.colUserId))
