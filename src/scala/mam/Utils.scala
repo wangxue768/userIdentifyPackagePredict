@@ -9,14 +9,69 @@ import java.util.Calendar
 import scala.collection.immutable.ListMap
 import scala.collection.mutable
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
+import org.apache.commons.pool2.impl.GenericObjectPoolConfig
+import redis.clients.jedis.JedisPool
+
+import java.io.{BufferedReader, InputStreamReader}
+import java.net.Socket
+import scala.util.control.Breaks
+
 
 object Utils {
+
+  /**
+   * 连接Python
+   */
+
+  val address = "127.0.0.1"
+  val port = 10004
+
+  def connModel(data: String):String = {
+    val socket = new Socket (address, port)
+    val outputStream = socket.getOutputStream
+    val inputStream = socket.getInputStream
+    outputStream.write (data.getBytes ("utf-8") )
+    outputStream.flush ()
+
+    val loop = new Breaks
+    val br = new BufferedReader(new InputStreamReader(inputStream))
+    var info: String = null
+    var result: String = ""
+
+    loop.breakable {
+      while ((info = br.readLine()) != null) {
+        //        print(info+"\n")
+        result += info
+        if (info.substring(info.length - 2) == "]]") {
+          loop.break()
+        }
+      }
+    }
+    result
+
+  }
+
+
+  /**
+   * Redis连接
+   */
+  private val poolConfi = new GenericObjectPoolConfig()
+  poolConfi.setMaxIdle(5)   //最大的空闲连接  连接池中最大的空闲连接数，默认为8
+  poolConfi.setMaxTotal(2000)   //支持最大的连接数  默认为8
+
+  //连接池是私有的 不能对外公开访问
+  private lazy val jedisPool = new JedisPool(poolConfi,"10.102.0.195")
+
+  def getJedis={
+    val jedis = jedisPool.getResource
+    jedis.select(0)
+    jedis
+  }
 
 
   def sysParamSetting() = {
 
-    System.setProperty("hadoop.home.dir", "c:\\winutils")
-
+    System.setProperty("hadoop.home.dir", "D:\\hadoop-2.7.1")
     Logger.getLogger("org").setLevel(Level.ERROR)
   }
 

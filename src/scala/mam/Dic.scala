@@ -44,6 +44,7 @@ object Dic {
 
   val colIsOrder = "is_order" // 1表示order, 0表示play
   val colTimeGap = "time_gap"
+  val colPlayTimeList = "play_time_list"
   /**
    * medias数据集中的属性
    */

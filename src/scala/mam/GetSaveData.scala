@@ -9,8 +9,8 @@ import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 object GetSaveData {
 
   var tempTable = "temp_table"
-  //      val hdfsPath = ""
-  val hdfsPath = "/Hisense_2/"
+        val hdfsPath = ""
+//  val hdfsPath = "/Hisense_2/"
 
   val orderProcessedPath = hdfsPath + "data/wx/train/common/processed/orders_basic_process"
 
